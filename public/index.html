@@ -1,0 +1,295 @@
+<!doctype html>
+<html lang="id">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Game Buzz</title>
+
+  <style>
+    :root {
+      --bg1: #667eea;
+      --bg2: #764ba2;
+      --card: rgba(255, 255, 255, .12);
+      --card-border: rgba(255, 255, 255, .25);
+      --text: #ffffff;
+      --muted: #e6e6ff;
+      --green: #00c853;
+      --red: #ff1744;
+      --yellow: #ffd600;
+    }
+
+    * {
+      box-sizing: border-box
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+      color: var(--text);
+      background: linear-gradient(135deg, var(--bg1), var(--bg2));
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+    }
+
+    .card {
+      width: 360px;
+      max-width: 92vw;
+      background: var(--card);
+      border: 1px solid var(--card-border);
+      border-radius: 16px;
+      padding: 24px 22px;
+      backdrop-filter: blur(12px);
+      box-shadow: 0 20px 40px rgba(0, 0, 0, .2);
+    }
+
+    h1 {
+      margin: 0 0 6px;
+      font-size: 28px;
+      letter-spacing: .3px;
+    }
+
+    .subtitle {
+      margin: 0 0 16px;
+      color: var(--muted);
+      font-size: 14px;
+    }
+
+    .row {
+      display: flex;
+      gap: 10px;
+      margin-top: 10px;
+      justify-content: center;
+      flex-wrap: wrap;
+    }
+
+    input {
+      width: 100%;
+      padding: 12px 14px;
+      border-radius: 10px;
+      border: none;
+      outline: none;
+      margin-top: 6px;
+      font-size: 14px;
+    }
+
+    button {
+      border: none;
+      border-radius: 10px;
+      padding: 12px 16px;
+      font-weight: 700;
+      cursor: pointer;
+      transition: transform .12s ease, box-shadow .12s ease, opacity .12s ease;
+      box-shadow: 0 10px 20px rgba(0, 0, 0, .15);
+    }
+
+    button:active {
+      transform: translateY(1px) scale(.98);
+      box-shadow: 0 6px 12px rgba(0, 0, 0, .15);
+    }
+
+    .btn-primary {
+      background: #ffffff;
+      color: #333;
+      width: 100%;
+    }
+
+    .start {
+      background: var(--green);
+      color: #fff;
+      min-width: 120px;
+    }
+
+    .buzz {
+      background: var(--red);
+      color: #fff;
+      font-size: 18px;
+      padding: 16px 18px;
+      display: none;
+      min-width: 160px;
+    }
+
+    .status {
+      margin: 10px 0 6px;
+      font-size: 16px;
+      font-weight: 600;
+    }
+
+    .players {
+      margin-top: 14px;
+      text-align: left;
+      background: rgba(255, 255, 255, .08);
+      border-radius: 10px;
+      padding: 10px 12px;
+      border: 1px dashed rgba(255, 255, 255, .25);
+    }
+
+    .players h3 {
+      margin: 0 0 6px;
+      font-size: 14px;
+      color: var(--muted);
+      font-weight: 600;
+    }
+
+    .players .item {
+      font-size: 14px;
+      padding: 2px 0;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .winner {
+      margin-top: 12px;
+      font-size: 20px;
+      color: var(--yellow);
+      font-weight: 800;
+      text-align: center;
+    }
+
+    .hidden {
+      display: none;
+    }
+  </style>
+</head>
+
+<body>
+
+  <div class="card">
+    <h1>🎮 Game Buzz</h1>
+    <p class="subtitle">Klik tercepat saat tombol muncul</p>
+
+    <!-- LOGIN -->
+    <div id="login">
+      <input id="username" placeholder="Masukkan username" />
+      <div class="row">
+        <button class="btn-primary" onclick="join()">Masuk</button>
+      </div>
+    </div>
+
+    <!-- GAME -->
+    <div id="game" class="hidden">
+      <div id="status" class="status">Menunggu host...</div>
+
+      <div class="row">
+        <button class="start" onclick="startSession()">START</button>
+        <button class="buzz" onclick="buzz()">🔥 BUZZ</button>
+      </div>
+
+      <div id="players" class="players">
+        <h3>Daftar Pemain</h3>
+        <div id="players-list"></div>
+      </div>
+
+      <div id="winner" class="winner"></div>
+    </div>
+  </div>
+
+<script>
+const ws = new WebSocket("ws://localhost:3000/ws");
+
+let myRole = null;
+
+// ================= JOIN =================
+function join() {
+  const user = document.getElementById("username").value.trim();
+
+  if (!user) {
+    alert("Isi username!");
+    return;
+  }
+
+  ws.send(JSON.stringify({
+    type: "JOIN",
+    username: user
+  }));
+
+  document.getElementById("login").classList.add("hidden");
+  document.getElementById("game").classList.remove("hidden");
+}
+
+// ================= START =================
+function startSession() {
+  if (myRole !== "HOST") return;
+
+  ws.send(JSON.stringify({
+    type: "START_SESSION"
+  }));
+}
+
+// ================= BUZZ =================
+function buzz() {
+  ws.send(JSON.stringify({
+    type: "BUZZ"
+  }));
+}
+
+// ================= HANDLE RESPONSE =================
+ws.onmessage = (event) => {
+  const data = JSON.parse(event.data);
+
+  // ===== ROLE =====
+  if (data.type === "ROLE") {
+    myRole = data.role;
+
+    if (data.role === "HOST") {
+      document.getElementById("status").innerText = "👑 Kamu adalah HOST";
+      document.querySelector(".start").style.display = "inline-block";
+    } else {
+      document.getElementById("status").innerText = "Menunggu host...";
+      document.querySelector(".start").style.display = "none";
+    }
+  }
+
+  // ===== PLAYERS =====
+  if (data.type === "PLAYERS") {
+    const list = data.players
+      .map(p => {
+        // tandai host di list
+        if (myRole === "HOST" && p === data.players[0]) {
+          return `<div class="item">👑 ${p}</div>`;
+        }
+        return `<div class="item">👤 ${p}</div>`;
+      })
+      .join("");
+
+    document.getElementById("players-list").innerHTML = list;
+  }
+
+  // ===== GAME START =====
+  if (data.type === "GAME_STARTED") {
+    document.getElementById("status").innerText = "Game dimulai...";
+    document.querySelector(".start").style.display = "none";
+    document.getElementById("winner").innerText = "";
+    document.querySelector(".buzz").style.display = "none";
+  }
+
+  // ===== SHOW BUTTON =====
+  if (data.type === "SHOW_BUTTON") {
+    document.querySelector(".buzz").style.display = "inline-block";
+    document.getElementById("status").innerText = "🔥 CEPAT KLIK!";
+  }
+
+  // ===== WINNER =====
+  if (data.type === "WINNER") {
+    document.getElementById("winner").innerText =
+      "🏆 " + data.winner;
+
+    document.querySelector(".buzz").style.display = "none";
+
+    // hanya host boleh start lagi
+    if (myRole === "HOST") {
+      document.querySelector(".start").style.display = "inline-block";
+    }
+
+    document.getElementById("status").innerText = "Game selesai";
+  }
+};
+</script>
+
+</body>
+
+</html>
